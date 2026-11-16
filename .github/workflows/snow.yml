@@ -1,0 +1,65 @@
+# Runs in the public site repo (bcoop8/streamcal) as .github/workflows/snow.yml, next to
+# snow/build_snow.py. The app repo keeps the same two files in its snow/ folder (see
+# snow/README.md there): change them in the app repo, then copy them here.
+#
+# Four times a day it rebuilds snow/v1/events.json and commits it when the schedule changed.
+# GitHub Pages then serves it at https://bcoop8.github.io/streamcal/snow/v1/events.json,
+# the address the app reads.
+name: Snow sports data
+on:
+  schedule:
+    - cron: "17 */6 * * *"     # four times a day: snow events move for weather
+  workflow_dispatch:
+  push:                        # and at once when the builder or this file changes
+    branches: [main]
+    paths:
+      - snow/build_snow.py
+      - .github/workflows/snow.yml
+permissions:
+  contents: write
+concurrency:
+  group: snow-data
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Plain git and the Python that comes with the runner: nothing here to go out of date.
+      - name: Get the site
+        env:
+          TOKEN: ${{ github.token }}
+        run: git clone --quiet --depth 1 --branch main "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
+      - name: Build events.json
+        # 2 = written, and a source that couldn't be read kept its old events. 1 = not written.
+        run: python3 snow/build_snow.py snow/v1 || [ $? -eq 2 ]
+      - name: Publish if it changed
+        run: |
+          status=0
+          python3 - <<'EOF' || status=$?
+          import json, subprocess, sys
+          from datetime import datetime, timezone
+          new = json.load(open("snow/v1/events.json"))
+          try:
+              old = json.loads(subprocess.run(["git", "show", "HEAD:snow/v1/events.json"],
+                                              capture_output=True, text=True, check=True).stdout)
+          except Exception:
+              sys.exit(0)        # no file yet: this is the first one
+          # A commit at least once a month even when nothing moved: GitHub switches a
+          # schedule off in a repo that has seen no activity for 60 days.
+          try:
+              made = datetime.strptime(old["generated"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+              quiet = (datetime.now(timezone.utc) - made).days >= 30
+          except Exception:
+              quiet = True
+          # Only the "generated" stamp changing isn't a change worth a commit.
+          new.pop("generated", None); old.pop("generated", None)
+          sys.exit(0 if new != old or quiet else 78)
+          EOF
+          if [ $status -eq 78 ]; then echo "No change"; exit 0; fi
+          if [ $status -ne 0 ]; then exit $status; fi
+          git config user.name "snow-data"
+          git config user.email "actions@users.noreply.github.com"
+          git add snow/v1/events.json
+          git commit --quiet -m "Snow sports data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push --quiet || { git pull --quiet --rebase && git push --quiet; }
+          echo "Published $(git rev-parse --short HEAD)"
