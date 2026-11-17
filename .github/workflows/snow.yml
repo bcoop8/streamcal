@@ -2,13 +2,15 @@
 # snow/build_snow.py. The app repo keeps the same two files in its snow/ folder (see
 # snow/README.md there): change them in the app repo, then copy them here.
 #
-# Four times a day it rebuilds snow/v1/events.json and commits it when the schedule changed.
+# Every two hours it rebuilds snow/v1/events.json and commits it when the schedule changed.
 # GitHub Pages then serves it at https://bcoop8.github.io/streamcal/snow/v1/events.json,
 # the address the app reads.
 name: Snow sports data
 on:
   schedule:
-    - cron: "17 */6 * * *"     # four times a day: snow events move for weather
+    # Every two hours, away from the top of the hour and from midnight UTC. Snow events move
+    # for weather, and GitHub starts timed runs late and skips some of them.
+    - cron: "37 1,3,5,7,9,11,13,15,17,19,21,23 * * *"
   workflow_dispatch:
   push:                        # and at once when the builder or this file changes
     branches: [main]
