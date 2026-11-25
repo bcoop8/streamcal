@@ -253,8 +253,10 @@ def main():
     target = out / "events.json"
     now = datetime.now(timezone.utc)
     season = season_for(now)
-    # Old news goes: keep from two weeks back.
-    cutoff = (now - timedelta(days=14)).strftime("%Y-%m-%d")
+    # The whole season stays, from its first event on: the app keeps what you haven't watched
+    # of the sports you follow, however long ago it was. (Until Nov 2026 only the last two
+    # weeks were kept.) Only leftovers from the season before go.
+    cutoff = f"{season - 1}-07-01"
 
     def current(events):
         return [e for e in events if e.get("endDay", e["day"]) >= cutoff]
