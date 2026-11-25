@@ -184,6 +184,13 @@ def fis_events(season):
     return sources, problems
 
 
+def fwt_title(raw):
+    """A stop's name as the tour has it, without the year in front and with "Pro" capitalized
+    (the tour's own page lists "Georgia pro" next to "Val Thorens Pro")."""
+    title = re.sub(r"^\d{4}\s+", "", raw).strip()
+    return re.sub(r"\bpro\b", "Pro", title)
+
+
 def fwt_events(season):
     text = fetch(FWT_EVENTS.format(season=season))
     m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', text, re.S)
@@ -209,7 +216,7 @@ def fwt_events(season):
             continue
         seen.add(e["id"])
         country = ISO3.get(e.get("country") or "", e.get("country") or "")
-        title = re.sub(r"^\d{4}\s+", "", e["title"]).strip()
+        title = fwt_title(e["title"])
         item = {
             "id": f"FWT{e['id']}",
             "sport": "freeride",
